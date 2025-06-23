@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dasbor Analisis Penagihan</title>
+    <style>
+        /* CSS (Styling) untuk Tampilan Modern ala macOS dengan Tema Gelap */
+        :root {
+            --bg-color: #0d1117;
+            --window-bg: rgba(22, 27, 34, 0.85);
+            --border-color: #30363d;
+            --text-color: #c9d1d9;
+            --header-text-color: #8b949e;
+            --shadow-color: rgba(0, 0, 0, 0.4);
+            --accent-color: #58a6ff;
+            --accent-hover: #1f6feb;
+            --success-color: #238636;
+            --danger-color: #da3633;
+            --warning-color: #e3b341;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .app-window {
+            width: 95%;
+            max-width: 1400px;
+            background: var(--window-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px 0 var(--shadow-color);
+            overflow: hidden;
+        }
+
+        .title-bar {
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            height: 40px;
+            background-color: rgba(13, 17, 23, 0.7);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .traffic-lights .light {
+            width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;
+        }
+        .light.red { background-color: #ff5f57; }
+        .light.yellow { background-color: #febc2e; }
+        .light.green { background-color: #28c840; }
+        
+        .window-title {
+            color: var(--header-text-color); font-weight: 600; margin: 0 auto;
+            transform: translateX(-24px);
+        }
+        #dashboard-title { transition: all 0.3s ease; }
+
+        .dashboard-container { padding: 24px; }
+
+        .toolbar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 24px; flex-wrap: wrap; gap: 15px;
+        }
+
+        .pic-filter .btn, .refresh-btn {
+            background-color: var(--accent-color); color: white; border: none;
+            padding: 10px 20px; border-radius: 8px; font-size: 14px;
+            font-weight: 500; cursor: pointer; transition: all 0.2s ease;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .pic-filter .btn:hover, .refresh-btn:hover { background-color: var(--accent-hover); }
+        .pic-filter .btn.active {
+            background-color: var(--success-color);
+            box-shadow: 0 0 0 2px rgba(35, 134, 54, 0.6);
+        }
+        .refresh-btn:disabled {
+            background-color: #30363d;
+            cursor: not-allowed;
+            color: #8b949e;
+        }
+
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px; margin-bottom: 24px;
+        }
+
+        .metric-card {
+            background: #161b22; padding: 20px; border-radius: 10px;
+            border: 1px solid var(--border-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .metric-card h3 {
+            margin: 0 0 10px 0; font-size: 14px; color: var(--header-text-color);
+            font-weight: 600;
+        }
+        .metric-card .value {
+            font-size: 24px; font-weight: 700; color: var(--text-color);
+        }
+        .metric-card .value.main { font-size: 32px; color: var(--accent-color); }
+        .metric-card .value.percent { color: var(--success-color); }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .chart-card {
+            background: #161b22; padding: 20px; border-radius: 10px;
+            border: 1px solid var(--border-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            min-height: 350px;
+        }
+        .chart-card h3 {
+            margin-top: 0; font-size: 18px; font-weight: 600;
+            color: var(--header-text-color); text-align: center; margin-bottom: 20px;
+        }
+
+        .chart-container { position: relative; height: 300px; }
+        .placeholder {
+            display: flex; justify-content: center; align-items: center;
+            height: 100%; text-align: center; padding: 40px;
+            color: #484f58; font-style: italic;
+        }
+
+        /* Modal Styling */
+        .modal {
+            display: none; position: fixed; z-index: 1000;
+            left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background-color: #161b22; margin: 10% auto; padding: 20px;
+            border: 1px solid var(--border-color); width: 80%; max-width: 600px;
+            border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 10px; border-bottom: 1px solid var(--border-color);
+        }
+        .modal-title { font-size: 20px; font-weight: 600; color: var(--text-color); }
+        .close-button {
+            color: #8b949e; float: right; font-size: 28px; font-weight: bold;
+            cursor: pointer;
+        }
+        .modal-body { padding-top: 15px; max-height: 400px; overflow-y: auto; }
+        .detail-item {
+            display: flex; justify-content: space-between;
+            padding: 8px 4px; border-bottom: 1px solid var(--border-color);
+        }
+        .detail-item:last-child { border-bottom: none; }
+        .detail-item .sisa { font-weight: 600; color: var(--accent-color); }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-window">
+        <div class="title-bar">
+            <div class="traffic-lights"><div class="light red"></div><div class="light yellow"></div><div class="light green"></div></div>
+            <div class="window-title" id="dashboard-title">Dasbor Analisis Penagihan</div>
+        </div>
+        
+        <div class="dashboard-container">
+            <div class="toolbar">
+                <div class="pic-filter">
+                    <button class="btn active" id="btn-all" onclick="filterByPic('All')">Semua PIC</button>
+                    <button class="btn" id="btn-mando" onclick="filterByPic('MANDO')">Mando</button>
+                    <button class="btn" id="btn-dena" onclick="filterByPic('DENA')">Dena</button>
+                    <button class="btn" id="btn-ayu" onclick="filterByPic('AYU')">Ayu</button>
+                </div>
+                <div class="actions">
+                    <button class="refresh-btn" id="refresh-btn" onclick="fetchData()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                        </svg>
+                        Refresh Data
+                    </button>
+                </div>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3>Pencapaian</h3>
+                    <div class="value main percent" id="pencapaian-persen">0%</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Total Target</h3>
+                    <div class="value" id="total-target">Rp 0</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Total Pembayaran</h3>
+                    <div class="value" id="total-pembayaran">Rp 0</div>
+                </div>
+                 <div class="metric-card">
+                    <h3>Total Sisa</h3>
+                    <div class="value" id="total-sisa">Rp 0</div>
+                </div>
+                 <div class="metric-card">
+                    <h3>Jumlah Toko</h3>
+                    <div class="value" id="total-toko">0</div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>Proporsi Sisa per Pilar</h3>
+                    <div class="chart-container">
+                        <canvas id="pilarChart"></canvas>
+                        <div id="pilar-placeholder" class="placeholder">Data pilar akan muncul di sini.</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Trend Total Piutang per Bulan</h3>
+                     <div class="chart-container">
+                        <canvas id="piutangTrendChart"></canvas>
+                        <div id="piutangTrend-placeholder" class="placeholder">Data piutang akan muncul di sini.</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Status Piutang Bermasalah (% dari Total Sisa)</h3>
+                    <div class="chart-container">
+                        <canvas id="corecollChart"></canvas>
+                        <div id="corecoll-placeholder" class="placeholder">Data Corecoll akan muncul di sini.</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Pencapaian per Cabang (%)</h3>
+                    <div class="chart-container">
+                        <canvas id="cabangPerfChart"></canvas>
+                        <div id="cabangPerf-placeholder" class="placeholder">Data cabang akan muncul di sini.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk Detail -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle" class="modal-title">Rincian Detail</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let allData = [];
+        let pilarChart, corecollChart, cabangPerfChart, piutangTrendChart;
+        let currentPIC = 'All';
+        let currentBranch = 'All'; // State untuk filter cabang
+        
+        const fontFamily = getComputedStyle(document.body).getPropertyValue('--font-family').trim();
+        const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim();
+        const borderColor = getComputedStyle(document.body).getPropertyValue('--border-color').trim();
+        const accentColor = getComputedStyle(document.body).getPropertyValue('--accent-color').trim();
+        const successColor = getComputedStyle(document.body).getPropertyValue('--success-color').trim();
+        
+        const modal = document.getElementById('detailModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        const closeButton = document.querySelector('.close-button');
+        const dashboardTitle = document.getElementById('dashboard-title');
+        const refreshBtn = document.getElementById('refresh-btn');
+
+        closeButton.onclick = () => modal.style.display = "none";
+        window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
+        
+        // --- Chart.js Global Defaults for Dark Theme ---
+        Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = borderColor;
+
+        function parseCSV(csvText) {
+            const lines = csvText.trim().replace(/\r/g, "").split('\n');
+            const headers = lines.shift().split(',').map(h => h.trim().toLowerCase());
+            
+            allData = lines.map(line => {
+                const values = line.split(',');
+                const row = {};
+                headers.forEach((header, index) => {
+                    const cleanHeader = header.trim().toLowerCase();
+                    let value = values[index] ? values[index].trim() : '';
+                    
+                    if (['target', 'pembayaran', 'sisa'].includes(cleanHeader)) {
+                        value = parseFloat(value) || 0;
+                    } else if (['tanggal', 'jatuh tempo'].includes(cleanHeader)) {
+                        value = value ? new Date(value) : null;
+                        if (value instanceof Date && isNaN(value)) {
+                            value = null; // Invalid date becomes null
+                        }
+                    }
+                    row[cleanHeader] = value;
+                });
+                return row;
+            });
+            
+            allData = allData.filter(row => row.invoice && String(row.invoice).trim() !== '');
+        }
+
+        async function fetchData() {
+            const googleSheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR52G1ER7keYpzvZTVBDHrdlYgtWFDUEyGBdoK9tQlOVbDjn2sEldjQ4ZXxYdskmm5qxB9OeRgAl7Z0/pub?output=csv';
+            
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = 'Memuat...';
+
+            try {
+                // FIX: Mengambil data langsung dari Google Sheet tanpa proxy
+                const response = await fetch(googleSheetUrl);
+                if (!response.ok) {
+                    throw new Error(`Gagal mengambil data: ${response.statusText}`);
+                }
+                const csvText = await response.text();
+                parseCSV(csvText);
+                applyFilters(); 
+            } catch (error) {
+                console.error("Error fetching or parsing CSV data:", error);
+                alert("Gagal mengambil data dari Google Sheet. Periksa koneksi internet atau pastikan tautan dapat diakses secara publik.");
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg> Refresh Data`;
+            }
+        }
+
+
+        function applyFilters() {
+            let filteredData = allData;
+            if (currentPIC !== 'All') {
+                filteredData = filteredData.filter(row => row.pic && String(row.pic).toUpperCase() === currentPIC.toUpperCase());
+            }
+            if (currentBranch !== 'All') {
+                filteredData = filteredData.filter(row => row.cabang && String(row.cabang).toUpperCase() === currentBranch.toUpperCase());
+            }
+
+            let title = "Dasbor Analisis Penagihan";
+            if (currentBranch !== 'All') title += ` - Cabang ${currentBranch}`;
+            dashboardTitle.textContent = title;
+
+            updateDashboard(filteredData);
+        }
+
+        function filterByPic(pic) {
+            currentPIC = pic;
+            currentBranch = 'All'; // Reset filter cabang saat ganti PIC
+            document.querySelectorAll('.pic-filter .btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${pic.toLowerCase()}`).classList.add('active');
+            applyFilters();
+        }
+
+        function filterByBranch(branch) {
+            if (currentBranch === branch) {
+                currentBranch = 'All';
+            } else {
+                currentBranch = branch;
+            }
+            applyFilters();
+        }
+
+        function updateDashboard(data) {
+            updateMetrics(data);
+            updateCorecollChart(data);
+            updateCabangPerfChart(data);
+            updatePilarChart(data);
+            updatePiutangTrendChart(data);
+        }
+        
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+        }
+
+        function updateMetrics(data) {
+            const uniqueToko = new Set(data.map(row => row.pelanggan));
+            document.getElementById('total-toko').textContent = uniqueToko.size;
+
+            const totalTarget = data.reduce((sum, row) => sum + (parseFloat(row.target) || 0), 0);
+            const totalPembayaran = data.reduce((sum, row) => sum + (parseFloat(row.pembayaran) || 0), 0);
+            const totalSisa = data.reduce((sum, row) => sum + (parseFloat(row.sisa) || 0), 0);
+            const pencapaian = totalTarget > 0 ? (totalPembayaran / totalTarget) * 100 : 0;
+
+            document.getElementById('pencapaian-persen').textContent = `${pencapaian.toFixed(1)}%`;
+            document.getElementById('total-target').textContent = formatCurrency(totalTarget);
+            document.getElementById('total-pembayaran').textContent = formatCurrency(totalPembayaran);
+            document.getElementById('total-sisa').textContent = formatCurrency(totalSisa);
+        }
+        
+        function setupChart(chartId, placeholderId, chartInstance, config) {
+            const placeholder = document.getElementById(placeholderId);
+            const canvas = document.getElementById(chartId);
+            const ctx = canvas.getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            if (config.data.labels && config.data.labels.length > 0) {
+                 placeholder.style.display = 'none';
+                 canvas.style.display = 'block';
+                 return new Chart(ctx, config);
+            } else {
+                 placeholder.style.display = 'flex';
+                 canvas.style.display = 'none';
+                 return null;
+            }
+        }
+
+        function createGradient(ctx, colors) {
+            if (!ctx) return colors[0];
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, colors[0]);
+            gradient.addColorStop(1, colors[1]);
+            return gradient;
+        }
+
+        function updateCorecollChart(data) {
+            const totalSisaKeseluruhan = data.reduce((sum, row) => sum + (parseFloat(row.sisa) || 0), 0);
+            const dataBermasalah = data.filter(row => row.corecoll && String(row.corecoll).trim().toUpperCase() !== 'LUNAS');
+            const corecollSisa = dataBermasalah.reduce((acc, row) => {
+                const status = String(row.corecoll).trim() || 'Lainnya';
+                const sisa = parseFloat(row.sisa) || 0;
+                if(sisa > 0) acc[status] = (acc[status] || 0) + sisa;
+                return acc;
+            }, {});
+
+            const chartConfig = {
+                type: 'bar',
+                data: { 
+                    labels: Object.keys(corecollSisa), 
+                    datasets: [{ 
+                        data: Object.values(corecollSisa), 
+                        backgroundColor: (context) => createGradient(context.chart.ctx, ['#58a6ff', '#1f6feb'])
+                    }] 
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: ctx => `${formatCurrency(ctx.parsed.x)} (${totalSisaKeseluruhan > 0 ? ((ctx.parsed.x / totalSisaKeseluruhan) * 100).toFixed(2) : 0}%)` } }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const chart = event.chart;
+                            const status = chart.data.labels[elements[0].index];
+                            const detailData = dataBermasalah.filter(row => (String(row.corecoll).trim() || 'Lainnya') === status);
+                            showModal(`Rincian Status: ${status}`, detailData);
+                        }
+                    }
+                }
+            };
+            corecollChart = setupChart('corecollChart', 'corecoll-placeholder', corecollChart, chartConfig);
+        }
+
+        function updateCabangPerfChart(data) {
+            let dataForChart = allData;
+            if (currentPIC !== 'All') {
+                dataForChart = allData.filter(row => row.pic && String(row.pic).toUpperCase() === currentPIC.toUpperCase());
+            }
+
+            const cabangPerf = dataForChart.reduce((acc, row) => {
+                const cabang = row.cabang || 'Lainnya';
+                if (!acc[cabang]) acc[cabang] = { target: 0, pembayaran: 0 };
+                acc[cabang].target += parseFloat(row.target) || 0;
+                acc[cabang].pembayaran += parseFloat(row.pembayaran) || 0;
+                return acc;
+            }, {});
+
+            const labels = Object.keys(cabangPerf);
+            const perfData = labels.map(cabang => {
+                const { target, pembayaran } = cabangPerf[cabang];
+                return target > 0 ? (pembayaran / target) * 100 : 0;
+            });
+            
+            const chartConfig = {
+                type: 'bar',
+                data: { 
+                    labels: labels, 
+                    datasets: [{ 
+                        label: 'Pencapaian (%)', 
+                        data: perfData, 
+                        backgroundColor: (context) => createGradient(context.chart.ctx, [successColor, '#238636'])
+                    }] 
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false }, 
+                        tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y.toFixed(2)}%` } } 
+                    },
+                    scales: { 
+                        y: { ticks: { callback: (val) => `${val}%` }, grid: { color: borderColor } }, 
+                        x: { grid: { color: borderColor } } 
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const chart = event.chart;
+                            const branch = chart.data.labels[elements[0].index];
+                            filterByBranch(branch);
+                        }
+                    }
+                }
+            };
+            cabangPerfChart = setupChart('cabangPerfChart', 'cabangPerf-placeholder', cabangPerfChart, chartConfig);
+        }
+        
+        function updatePilarChart(data) {
+            const pilarSisa = data.reduce((acc, row) => {
+                const pilar = row.pilar || 'Lainnya';
+                const sisa = parseFloat(row.sisa) || 0;
+                if(sisa > 0) acc[pilar] = (acc[pilar] || 0) + sisa;
+                return acc;
+            }, {});
+
+            const totalSisa = Object.values(pilarSisa).reduce((sum, val) => sum + val, 0);
+            const pilarLabels = { 'MT': 'Modern Trade', 'SPRO': 'Sales Project', 'SEA': 'Sales Executive' };
+            const chartConfig = {
+                type: 'doughnut',
+                data: { 
+                    labels: Object.keys(pilarSisa).map(p => pilarLabels[p] || p), 
+                    datasets: [{ 
+                        data: Object.values(pilarSisa), 
+                        backgroundColor: ['#1f6feb', '#238636', '#e3b341', '#da3633', '#a371f7'],
+                        borderColor: '#161b22'
+                    }] 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { position: 'bottom' },
+                        tooltip: { 
+                            callbacks: { 
+                                label: ctx => {
+                                    const value = ctx.parsed;
+                                    const percentage = totalSisa > 0 ? ((value / totalSisa) * 100).toFixed(2) : 0;
+                                    return `${ctx.label}: ${formatCurrency(value)} (${percentage}%)`;
+                                }
+                            } 
+                        }
+                    } 
+                }
+            };
+            pilarChart = setupChart('pilarChart', 'pilar-placeholder', pilarChart, chartConfig);
+        }
+
+        function updatePiutangTrendChart(data) {
+            const monthlySisa = data.reduce((acc, row) => {
+                if (row.tanggal instanceof Date) {
+                    const monthKey = row.tanggal.toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit'});
+                    if (!acc[monthKey]) acc[monthKey] = [];
+                    acc[monthKey].push(row);
+                }
+                return acc;
+            }, {});
+
+            const sortedMonths = Object.keys(monthlySisa).sort();
+            const trendData = sortedMonths.map(monthKey => monthlySisa[monthKey].reduce((sum, r) => sum + (parseFloat(r.sisa) || 0), 0) );
+            const monthLabels = sortedMonths.map(monthKey => new Date(monthKey + '-02').toLocaleDateString('id-ID', {year: 'numeric', month: 'short'}));
+            
+            const chartConfig = {
+                type: 'line',
+                data: { 
+                    labels: monthLabels, 
+                    datasets: [{ 
+                        label: 'Total Sisa Piutang', 
+                        data: trendData, 
+                        fill: true, 
+                        borderColor: accentColor, 
+                        backgroundColor: (context) => createGradient(context.chart.ctx, ['rgba(88, 166, 255, 0.5)', 'rgba(88, 166, 255, 0)']),
+                        tension: 0.4 
+                    }] 
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { ticks: { callback: (val) => formatCurrency(val) } } },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const monthIndex = elements[0].index;
+                            const monthKey = sortedMonths[monthIndex];
+                            const monthLabel = monthLabels[monthIndex];
+                            const detailDataForMonth = monthlySisa[monthKey];
+                            const filteredDetailData = detailDataForMonth.filter(item => (parseFloat(item.sisa) || 0) > 50000);
+                            showModal(`Rincian Piutang > 50.000: ${monthLabel}`, filteredDetailData);
+                        }
+                    }
+                }
+            };
+            piutangTrendChart = setupChart('piutangTrendChart', 'piutangTrend-placeholder', piutangTrendChart, chartConfig);
+        }
+
+        function showModal(title, detailData) {
+            modalTitle.textContent = title;
+            modalBody.innerHTML = '';
+            if (detailData.length === 0) {
+                modalBody.innerHTML = '<p>Tidak ada data untuk ditampilkan.</p>';
+            } else {
+                detailData.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'detail-item';
+                    div.innerHTML = `<span>${item.pelanggan}</span><span class="sisa">${formatCurrency(item.sisa)}</span>`;
+                    modalBody.appendChild(div);
+                });
+            }
+            modal.style.display = 'block';
+        }
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', fetchData);
+    </script>
+</body>
+</html>
