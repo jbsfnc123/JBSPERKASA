@@ -166,10 +166,14 @@
         }
         .detail-item.two-cols { grid-template-columns: 2fr 1fr; }
         .detail-item.three-cols { grid-template-columns: 2fr 1fr 1fr; }
+        .detail-item.four-cols { grid-template-columns: 2fr 1fr 1fr 1fr; }
 
         .detail-item:last-child { border-bottom: none; }
         .detail-item .sisa { font-weight: 600; color: var(--accent-color); text-align: right; }
-        .detail-item .jatuh-tempo { text-align: center; color: var(--header-text-color); }
+        .detail-item .jatuh-tempo, .detail-item .corecoll-status { 
+            text-align: center; 
+            color: var(--header-text-color); 
+        }
 
     </style>
 </head>
@@ -461,7 +465,6 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: { callbacks: { label: ctx => `${formatCurrency(ctx.parsed.x)} (${totalSisaKeseluruhan > 0 ? ((ctx.parsed.x / totalSisaKeseluruhan) * 100).toFixed(2) : 0}%)` } },
-                        // Store data for modal in meta
                         meta: {
                            dataBermasalah: dataBermasalah
                         }
@@ -618,7 +621,7 @@
                             const monthLabel = meta.monthLabels[monthIndex];
                             const detailDataForMonth = meta.monthlySisa[monthKey];
                             const filteredDetailData = detailDataForMonth.filter(item => (parseFloat(item.sisa) || 0) > 50000);
-                            showModal(`Rincian Piutang > 50.000: ${monthLabel}`, filteredDetailData, ['pelanggan', 'jatuh tempo', 'sisa']);
+                            showModal(`Rincian Piutang > 50.000: ${monthLabel}`, filteredDetailData, ['pelanggan', 'jatuh tempo', 'corecoll', 'sisa']);
                         }
                     }
                 }
@@ -633,17 +636,22 @@
                 modalBody.innerHTML = '<p>Tidak ada data untuk ditampilkan.</p>';
             } else {
                 const headerDiv = document.createElement('div');
-                headerDiv.className = 'detail-item ' + (columns.length === 3 ? 'three-cols' : 'two-cols');
+                let gridClass = 'two-cols';
+                if (columns.length === 3) gridClass = 'three-cols';
+                if (columns.length === 4) gridClass = 'four-cols';
+                headerDiv.className = 'detail-item ' + gridClass;
+
                 let headerContent = '';
                 if (columns.includes('pelanggan')) headerContent += `<strong>Pelanggan</strong>`;
                 if (columns.includes('jatuh tempo')) headerContent += `<strong style="text-align: center;">Jatuh Tempo</strong>`;
+                if (columns.includes('corecoll')) headerContent += `<strong style="text-align: center;">Status</strong>`;
                 if (columns.includes('sisa')) headerContent += `<strong style="text-align: right;">Sisa</strong>`;
                 headerDiv.innerHTML = headerContent;
                 modalBody.appendChild(headerDiv);
 
                 detailData.forEach(item => {
                     const div = document.createElement('div');
-                    div.className = 'detail-item ' + (columns.length === 3 ? 'three-cols' : 'two-cols');
+                    div.className = 'detail-item ' + gridClass;
                     
                     let content = '';
                     if (columns.includes('pelanggan')) {
@@ -651,6 +659,9 @@
                     }
                     if (columns.includes('jatuh tempo')) {
                         content += `<span class="jatuh-tempo">${formatDate(item['jatuh tempo'])}</span>`;
+                    }
+                    if (columns.includes('corecoll')) {
+                        content += `<span class="corecoll-status">${item['corecoll'] || '-'}</span>`;
                     }
                     if (columns.includes('sisa')) {
                         content += `<span class="sisa">${formatCurrency(item.sisa)}</span>`;
