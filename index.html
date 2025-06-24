@@ -229,13 +229,6 @@
 
             <div class="charts-grid">
                 <div class="chart-card">
-                    <h3>Proporsi Sisa per Pilar</h3>
-                    <div class="chart-container">
-                        <canvas id="pilarChart"></canvas>
-                        <div id="pilar-placeholder" class="placeholder">Data pilar akan muncul di sini.</div>
-                    </div>
-                </div>
-                <div class="chart-card">
                     <h3>Trend Total Piutang per Bulan</h3>
                      <div class="chart-container">
                         <canvas id="piutangTrendChart"></canvas>
@@ -254,6 +247,13 @@
                     <div class="chart-container">
                         <canvas id="cabangPerfChart"></canvas>
                         <div id="cabangPerf-placeholder" class="placeholder">Data cabang akan muncul di sini.</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Proporsi Sisa per Pilar</h3>
+                    <div class="chart-container">
+                        <canvas id="pilarChart"></canvas>
+                        <div id="pilar-placeholder" class="placeholder">Data pilar akan muncul di sini.</div>
                     </div>
                 </div>
             </div>
@@ -655,7 +655,7 @@
                     
                     let content = '';
                     if (columns.includes('pelanggan')) {
-                        content += `<span>${item.pelanggan || '-'}</span>`;
+                        content += `<span>${item.pelanggan || '-'} (${item.cabang || ''})</span>`;
                     }
                     if (columns.includes('jatuh tempo')) {
                         content += `<span class="jatuh-tempo">${formatDate(item['jatuh tempo'])}</span>`;
