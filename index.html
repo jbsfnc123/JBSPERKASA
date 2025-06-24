@@ -460,14 +460,18 @@
                     responsive: true, maintainAspectRatio: false, indexAxis: 'y',
                     plugins: {
                         legend: { display: false },
-                        tooltip: { callbacks: { label: ctx => `${formatCurrency(ctx.parsed.x)} (${totalSisaKeseluruhan > 0 ? ((ctx.parsed.x / totalSisaKeseluruhan) * 100).toFixed(2) : 0}%)` } }
+                        tooltip: { callbacks: { label: ctx => `${formatCurrency(ctx.parsed.x)} (${totalSisaKeseluruhan > 0 ? ((ctx.parsed.x / totalSisaKeseluruhan) * 100).toFixed(2) : 0}%)` } },
+                        // Store data for modal in meta
+                        meta: {
+                           dataBermasalah: dataBermasalah
+                        }
                     },
                     onClick: (event, elements) => {
                         if (elements.length > 0) {
                             const chart = event.chart;
                             const status = chart.data.labels[elements[0].index];
-                            const detailData = dataBermasalah.filter(row => (String(row.corecoll).trim() || 'Lainnya') === status);
-                            showModal(`Rincian Status: ${status}`, detailData, ['pelanggan', 'sisa']);
+                            const detailData = chart.config.options.plugins.meta.dataBermasalah.filter(row => (String(row.corecoll).trim() || 'Lainnya') === status);
+                            showModal(`Rincian Status: ${status}`, detailData, ['pelanggan', 'jatuh tempo', 'sisa']);
                         }
                     }
                 }
@@ -598,7 +602,6 @@
                     responsive: true, maintainAspectRatio: false,
                     plugins: { 
                         legend: { display: false },
-                        // Store metadata in the options for stable access in onClick
                         meta: {
                             sortedMonths: sortedMonths,
                             monthLabels: monthLabels,
@@ -629,7 +632,6 @@
             if (detailData.length === 0) {
                 modalBody.innerHTML = '<p>Tidak ada data untuk ditampilkan.</p>';
             } else {
-                // Add header row to modal
                 const headerDiv = document.createElement('div');
                 headerDiv.className = 'detail-item ' + (columns.length === 3 ? 'three-cols' : 'two-cols');
                 let headerContent = '';
