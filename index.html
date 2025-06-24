@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TEAM JABASUL</title>
+    <title>Team Jabasul</title>
     <style>
         /* CSS (Styling) untuk Tampilan Modern ala macOS dengan Tema Gelap */
         :root {
@@ -144,7 +144,7 @@
         }
         .modal-content {
             background-color: #161b22; margin: 10% auto; padding: 20px;
-            border: 1px solid var(--border-color); width: 80%; max-width: 600px;
+            border: 1px solid var(--border-color); width: 80%; max-width: 700px;
             border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
         .modal-header {
@@ -158,11 +158,18 @@
         }
         .modal-body { padding-top: 15px; max-height: 400px; overflow-y: auto; }
         .detail-item {
-            display: flex; justify-content: space-between;
-            padding: 8px 4px; border-bottom: 1px solid var(--border-color);
+            display: grid;
+            align-items: center;
+            padding: 8px 4px;
+            border-bottom: 1px solid var(--border-color);
+            gap: 15px;
         }
+        .detail-item.two-cols { grid-template-columns: 2fr 1fr; }
+        .detail-item.three-cols { grid-template-columns: 2fr 1fr 1fr; }
+
         .detail-item:last-child { border-bottom: none; }
-        .detail-item .sisa { font-weight: 600; color: var(--accent-color); }
+        .detail-item .sisa { font-weight: 600; color: var(--accent-color); text-align: right; }
+        .detail-item .jatuh-tempo { text-align: center; color: var(--header-text-color); }
 
     </style>
 </head>
@@ -171,7 +178,7 @@
     <div class="app-window">
         <div class="title-bar">
             <div class="traffic-lights"><div class="light red"></div><div class="light yellow"></div><div class="light green"></div></div>
-            <div class="window-title" id="dashboard-title">TEAM JABASUL</div>
+            <div class="window-title" id="dashboard-title">Team Jabasul</div>
         </div>
         
         <div class="dashboard-container">
@@ -225,7 +232,7 @@
                     </div>
                 </div>
                 <div class="chart-card">
-                    <h3>Penetrasi Piutang per Bulan</h3>
+                    <h3>Trend Total Piutang per Bulan</h3>
                      <div class="chart-container">
                         <canvas id="piutangTrendChart"></canvas>
                         <div id="piutangTrend-placeholder" class="placeholder">Data piutang akan muncul di sini.</div>
@@ -321,7 +328,6 @@
             refreshBtn.textContent = 'Memuat...';
 
             try {
-                // FIX: Mengambil data langsung dari Google Sheet tanpa proxy
                 const response = await fetch(googleSheetUrl);
                 if (!response.ok) {
                     throw new Error(`Gagal mengambil data: ${response.statusText}`);
@@ -348,7 +354,7 @@
                 filteredData = filteredData.filter(row => row.cabang && String(row.cabang).toUpperCase() === currentBranch.toUpperCase());
             }
 
-            let title = "TEAM JABASUL";
+            let title = "Team Jabasul";
             if (currentBranch !== 'All') title += ` - Cabang ${currentBranch}`;
             dashboardTitle.textContent = title;
 
@@ -382,6 +388,14 @@
         
         function formatCurrency(value) {
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+        }
+        
+        function formatDate(date) {
+            if (!(date instanceof Date) || isNaN(date)) return '-';
+            const d = String(date.getDate()).padStart(2, '0');
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const y = date.getFullYear();
+            return `${d}-${m}-${y}`;
         }
 
         function updateMetrics(data) {
@@ -453,7 +467,7 @@
                             const chart = event.chart;
                             const status = chart.data.labels[elements[0].index];
                             const detailData = dataBermasalah.filter(row => (String(row.corecoll).trim() || 'Lainnya') === status);
-                            showModal(`Rincian Status: ${status}`, detailData);
+                            showModal(`Rincian Status: ${status}`, detailData, ['pelanggan', 'sisa']);
                         }
                     }
                 }
@@ -582,16 +596,26 @@
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { 
+                        legend: { display: false },
+                        // Store metadata in the options for stable access in onClick
+                        meta: {
+                            sortedMonths: sortedMonths,
+                            monthLabels: monthLabels,
+                            monthlySisa: monthlySisa
+                        }
+                    },
                     scales: { y: { ticks: { callback: (val) => formatCurrency(val) } } },
                     onClick: (event, elements) => {
                         if (elements.length > 0) {
+                            const chart = event.chart;
                             const monthIndex = elements[0].index;
-                            const monthKey = sortedMonths[monthIndex];
-                            const monthLabel = monthLabels[monthIndex];
-                            const detailDataForMonth = monthlySisa[monthKey];
+                            const meta = chart.config.options.plugins.meta;
+                            const monthKey = meta.sortedMonths[monthIndex];
+                            const monthLabel = meta.monthLabels[monthIndex];
+                            const detailDataForMonth = meta.monthlySisa[monthKey];
                             const filteredDetailData = detailDataForMonth.filter(item => (parseFloat(item.sisa) || 0) > 50000);
-                            showModal(`Rincian Piutang > 50.000: ${monthLabel}`, filteredDetailData);
+                            showModal(`Rincian Piutang > 50.000: ${monthLabel}`, filteredDetailData, ['pelanggan', 'jatuh tempo', 'sisa']);
                         }
                     }
                 }
@@ -599,16 +623,38 @@
             piutangTrendChart = setupChart('piutangTrendChart', 'piutangTrend-placeholder', piutangTrendChart, chartConfig);
         }
 
-        function showModal(title, detailData) {
+        function showModal(title, detailData, columns = ['pelanggan', 'sisa']) {
             modalTitle.textContent = title;
             modalBody.innerHTML = '';
             if (detailData.length === 0) {
                 modalBody.innerHTML = '<p>Tidak ada data untuk ditampilkan.</p>';
             } else {
+                // Add header row to modal
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'detail-item ' + (columns.length === 3 ? 'three-cols' : 'two-cols');
+                let headerContent = '';
+                if (columns.includes('pelanggan')) headerContent += `<strong>Pelanggan</strong>`;
+                if (columns.includes('jatuh tempo')) headerContent += `<strong style="text-align: center;">Jatuh Tempo</strong>`;
+                if (columns.includes('sisa')) headerContent += `<strong style="text-align: right;">Sisa</strong>`;
+                headerDiv.innerHTML = headerContent;
+                modalBody.appendChild(headerDiv);
+
                 detailData.forEach(item => {
                     const div = document.createElement('div');
-                    div.className = 'detail-item';
-                    div.innerHTML = `<span>${item.pelanggan}</span><span class="sisa">${formatCurrency(item.sisa)}</span>`;
+                    div.className = 'detail-item ' + (columns.length === 3 ? 'three-cols' : 'two-cols');
+                    
+                    let content = '';
+                    if (columns.includes('pelanggan')) {
+                        content += `<span>${item.pelanggan || '-'}</span>`;
+                    }
+                    if (columns.includes('jatuh tempo')) {
+                        content += `<span class="jatuh-tempo">${formatDate(item['jatuh tempo'])}</span>`;
+                    }
+                    if (columns.includes('sisa')) {
+                        content += `<span class="sisa">${formatCurrency(item.sisa)}</span>`;
+                    }
+                    
+                    div.innerHTML = content;
                     modalBody.appendChild(div);
                 });
             }
