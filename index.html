@@ -43,6 +43,7 @@
             border: 1px solid var(--border-color);
             box-shadow: 0 8px 32px 0 var(--shadow-color);
             overflow: hidden;
+            display: none; /* Hidden by default, shown after PIN validation */
         }
 
         .title-bar {
@@ -175,11 +176,89 @@
             color: var(--header-text-color); 
         }
 
+        /* PIN Modal Styling */
+        #pinModal {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+        }
+        .pin-modal-content {
+            background-color: #161b22;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        .pin-modal-content h2 {
+            color: var(--text-color);
+            margin-bottom: 25px;
+            font-size: 24px;
+        }
+        .pin-modal-content input[type="password"] {
+            width: calc(100% - 40px);
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: #0d1117;
+            color: var(--text-color);
+            font-size: 18px;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .pin-modal-content input[type="password"]:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
+        }
+        .pin-modal-content button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+        .pin-modal-content button:hover {
+            background-color: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+        .pin-message {
+            color: var(--danger-color);
+            margin-top: 15px;
+            font-size: 14px;
+            min-height: 20px; /* To prevent layout shift */
+        }
+
     </style>
 </head>
 <body>
 
-    <div class="app-window">
+    <!-- PIN Modal -->
+    <div id="pinModal" class="modal">
+        <div class="pin-modal-content">
+            <h2>Masukkan PIN</h2>
+            <input type="password" id="pinInput" placeholder="&#9679;&#9679;&#9679;&#9679;" maxlength="4">
+            <button id="pinSubmit">Masuk</button>
+            <div id="pinMessage" class="pin-message"></div>
+        </div>
+    </div>
+
+    <div class="app-window" id="appWindow">
         <div class="title-bar">
             <div class="traffic-lights"><div class="light red"></div><div class="light yellow"></div><div class="light green"></div></div>
             <div class="window-title" id="dashboard-title">Team Jabasul</div>
@@ -249,13 +328,7 @@
                         <div id="cabangPerf-placeholder" class="placeholder">Data cabang akan muncul di sini.</div>
                     </div>
                 </div>
-                <div class="chart-card">
-                    <h3>Proporsi Sisa per Pilar</h3>
-                    <div class="chart-container">
-                        <canvas id="pilarChart"></canvas>
-                        <div id="pilar-placeholder" class="placeholder">Data pilar akan muncul di sini.</div>
-                    </div>
-                </div>
+                <!-- Removed "Proporsi Sisa per Pilar" chart -->
             </div>
         </div>
     </div>
@@ -274,10 +347,14 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         let allData = [];
-        let pilarChart, corecollChart, cabangPerfChart, piutangTrendChart;
+        let pilarChart, corecollChart, cabangPerfChart, piutangTrendChart; // pilarChart is still declared but will not be initialized
         let currentPIC = 'All';
-        let currentBranch = 'All'; // State untuk filter cabang
-        
+        let currentBranch = 'All'; // State for branch filter
+        let validPINs = []; // Store valid PINs from Google Sheet
+
+        const googleSheetDataUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR52G1ER7keYpzvZTVBDHrdlYgtWFDUEyGBdoK9tQlOVbDjn2sEldjQ4ZXxYdskmm5qxB9OeRgAl7Z0/pub?output=csv';
+        const googleSheetPinUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR52G1ER7keYpzvZTVBDHrdlYgtWFDUEyGBdoK9tQlOVbDjn2sEldjQ4ZXxYdskmm5qxB9OeRgAl7Z0/pub?gid=113434415&single=true&output=csv'; // URL for PIN sheet
+
         const fontFamily = getComputedStyle(document.body).getPropertyValue('--font-family').trim();
         const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim();
         const borderColor = getComputedStyle(document.body).getPropertyValue('--border-color').trim();
@@ -290,6 +367,13 @@
         const closeButton = document.querySelector('.close-button');
         const dashboardTitle = document.getElementById('dashboard-title');
         const refreshBtn = document.getElementById('refresh-btn');
+        const appWindow = document.getElementById('appWindow');
+
+        // PIN elements
+        const pinModal = document.getElementById('pinModal');
+        const pinInput = document.getElementById('pinInput');
+        const pinSubmit = document.getElementById('pinSubmit');
+        const pinMessage = document.getElementById('pinMessage');
 
         closeButton.onclick = () => modal.style.display = "none";
         window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
@@ -298,11 +382,12 @@
         Chart.defaults.color = textColor;
         Chart.defaults.borderColor = borderColor;
 
+        // Function to parse CSV data
         function parseCSV(csvText) {
             const lines = csvText.trim().replace(/\r/g, "").split('\n');
             const headers = lines.shift().split(',').map(h => h.trim().toLowerCase());
             
-            allData = lines.map(line => {
+            return lines.map(line => {
                 const values = line.split(',');
                 const row = {};
                 headers.forEach((header, index) => {
@@ -320,34 +405,74 @@
                     row[cleanHeader] = value;
                 });
                 return row;
-            });
-            
-            allData = allData.filter(row => row.invoice && String(row.invoice).trim() !== '');
+            }).filter(row => row.invoice && String(row.invoice).trim() !== ''); // Filter out rows with empty invoices
         }
 
+        // Function to fetch and parse PIN data
+        async function fetchPinData() {
+            try {
+                const response = await fetch(googleSheetPinUrl);
+                if (!response.ok) {
+                    throw new Error(`Gagal mengambil data PIN: ${response.statusText}`);
+                }
+                const csvText = await response.text();
+                const lines = csvText.trim().replace(/\r/g, "").split('\n');
+                // Assuming PINs are in the first column of Sheet2 and the first row is a header
+                validPINs = lines.slice(1).map(line => line.split(',')[0].trim());
+            } catch (error) {
+                console.error("Error fetching or parsing PIN data:", error);
+                pinMessage.textContent = "Gagal memuat PIN. Coba lagi nanti.";
+            }
+        }
+
+        // Function to authenticate PIN
+        async function authenticatePin() {
+            const enteredPin = pinInput.value;
+            pinMessage.textContent = 'Memvalidasi PIN...';
+
+            if (validPINs.length === 0) {
+                await fetchPinData(); // Fetch PINs if not already loaded
+            }
+
+            if (validPINs.includes(enteredPin)) {
+                pinModal.style.display = 'none'; // Hide PIN modal
+                appWindow.style.display = 'block'; // Show main app window
+                fetchData(); // Load dashboard data
+            } else {
+                pinMessage.textContent = "PIN salah. Silakan coba lagi.";
+                pinInput.value = ''; // Clear PIN input
+            }
+        }
+
+        // Event listeners for PIN input
+        pinSubmit.addEventListener('click', authenticatePin);
+        pinInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                authenticatePin();
+            }
+        });
+
         async function fetchData() {
-            const googleSheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR52G1ER7keYpzvZTVBDHrdlYgtWFDUEyGBdoK9tQlOVbDjn2sEldjQ4ZXxYdskmm5qxB9OeRgAl7Z0/pub?output=csv';
-            
             refreshBtn.disabled = true;
             refreshBtn.textContent = 'Memuat...';
 
             try {
-                const response = await fetch(googleSheetUrl);
+                const response = await fetch(googleSheetDataUrl);
                 if (!response.ok) {
                     throw new Error(`Gagal mengambil data: ${response.statusText}`);
                 }
                 const csvText = await response.text();
-                parseCSV(csvText);
+                allData = parseCSV(csvText);
                 applyFilters(); 
             } catch (error) {
                 console.error("Error fetching or parsing CSV data:", error);
-                alert("Gagal mengambil data dari Google Sheet. Periksa koneksi internet atau pastikan tautan dapat diakses secara publik.");
+                // Use a custom message box instead of alert
+                showCustomMessageBox("Gagal mengambil data dari Google Sheet. Periksa koneksi internet atau pastikan tautan dapat diakses secara publik.");
             } finally {
                 refreshBtn.disabled = false;
                 refreshBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg> Refresh Data`;
             }
         }
-
 
         function applyFilters() {
             let filteredData = allData;
@@ -367,7 +492,7 @@
 
         function filterByPic(pic) {
             currentPIC = pic;
-            currentBranch = 'All'; // Reset filter cabang saat ganti PIC
+            currentBranch = 'All'; // Reset branch filter when PIC changes
             document.querySelectorAll('.pic-filter .btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`btn-${pic.toLowerCase()}`).classList.add('active');
             applyFilters();
@@ -386,7 +511,7 @@
             updateMetrics(data);
             updateCorecollChart(data);
             updateCabangPerfChart(data);
-            updatePilarChart(data);
+            // Removed updatePilarChart(data);
             updatePiutangTrendChart(data);
         }
         
@@ -534,45 +659,46 @@
             cabangPerfChart = setupChart('cabangPerfChart', 'cabangPerf-placeholder', cabangPerfChart, chartConfig);
         }
         
-        function updatePilarChart(data) {
-            const pilarSisa = data.reduce((acc, row) => {
-                const pilar = row.pilar || 'Lainnya';
-                const sisa = parseFloat(row.sisa) || 0;
-                if(sisa > 0) acc[pilar] = (acc[pilar] || 0) + sisa;
-                return acc;
-            }, {});
+        // This function is no longer called in updateDashboard
+        // function updatePilarChart(data) {
+        //     const pilarSisa = data.reduce((acc, row) => {
+        //         const pilar = row.pilar || 'Lainnya';
+        //         const sisa = parseFloat(row.sisa) || 0;
+        //         if(sisa > 0) acc[pilar] = (acc[pilar] || 0) + sisa;
+        //         return acc;
+        //     }, {});
 
-            const totalSisa = Object.values(pilarSisa).reduce((sum, val) => sum + val, 0);
-            const pilarLabels = { 'MT': 'Modern Trade', 'SPRO': 'Sales Project', 'SEA': 'Sales Executive' };
-            const chartConfig = {
-                type: 'doughnut',
-                data: { 
-                    labels: Object.keys(pilarSisa).map(p => pilarLabels[p] || p), 
-                    datasets: [{ 
-                        data: Object.values(pilarSisa), 
-                        backgroundColor: ['#1f6feb', '#238636', '#e3b341', '#da3633', '#a371f7'],
-                        borderColor: '#161b22'
-                    }] 
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { 
-                        legend: { position: 'bottom' },
-                        tooltip: { 
-                            callbacks: { 
-                                label: ctx => {
-                                    const value = ctx.parsed;
-                                    const percentage = totalSisa > 0 ? ((value / totalSisa) * 100).toFixed(2) : 0;
-                                    return `${ctx.label}: ${formatCurrency(value)} (${percentage}%)`;
-                                }
-                            } 
-                        }
-                    } 
-                }
-            };
-            pilarChart = setupChart('pilarChart', 'pilar-placeholder', pilarChart, chartConfig);
-        }
+        //     const totalSisa = Object.values(pilarSisa).reduce((sum, val) => sum + val, 0);
+        //     const pilarLabels = { 'MT': 'Modern Trade', 'SPRO': 'Sales Project', 'SEA': 'Sales Executive' };
+        //     const chartConfig = {
+        //         type: 'doughnut',
+        //         data: { 
+        //             labels: Object.keys(pilarSisa).map(p => pilarLabels[p] || p), 
+        //             datasets: [{ 
+        //                 data: Object.values(pilarSisa), 
+        //                 backgroundColor: ['#1f6feb', '#238636', '#e3b341', '#da3633', '#a371f7'],
+        //                 borderColor: '#161b22'
+        //             }] 
+        //         },
+        //         options: { 
+        //             responsive: true, 
+        //             maintainAspectRatio: false, 
+        //             plugins: { 
+        //                 legend: { position: 'bottom' },
+        //                 tooltip: { 
+        //                     callbacks: { 
+        //                         label: ctx => {
+        //                             const value = ctx.parsed;
+        //                             const percentage = totalSisa > 0 ? ((value / totalSisa) * 100).toFixed(2) : 0;
+        //                             return `${ctx.label}: ${formatCurrency(value)} (${percentage}%)`;
+        //                         }
+        //                     } 
+        //                 }
+        //             } 
+        //         }
+        //     };
+        //     pilarChart = setupChart('pilarChart', 'pilar-placeholder', pilarChart, chartConfig);
+        // }
 
         function updatePiutangTrendChart(data) {
             const monthlySisa = data.reduce((acc, row) => {
@@ -674,8 +800,47 @@
             modal.style.display = 'block';
         }
 
-        // Initial load
-        document.addEventListener('DOMContentLoaded', fetchData);
+        // Custom message box function (replaces alert())
+        function showCustomMessageBox(message) {
+            // This is a basic implementation. For a more robust solution,
+            // you'd create a dedicated modal for messages similar to the detailModal.
+            const messageBox = document.createElement('div');
+            messageBox.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background-color: #161b22;
+                border: 1px solid var(--border-color);
+                border-radius: 10px;
+                padding: 20px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                z-index: 1002;
+                color: var(--text-color);
+                text-align: center;
+                max-width: 90%;
+            `;
+            messageBox.innerHTML = `
+                <p>${message}</p>
+                <button style="
+                    background-color: var(--accent-color);
+                    color: white;
+                    border: none;
+                    padding: 8px 15px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    margin-top: 15px;
+                " onclick="this.parentNode.remove()">OK</button>
+            `;
+            document.body.appendChild(messageBox);
+        }
+
+        // Initial load - show PIN modal first
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchPinData(); // Pre-fetch PINs on page load
+            pinModal.style.display = 'flex'; // Show PIN modal
+            pinInput.focus(); // Focus on PIN input
+        });
     </script>
 </body>
 </html>
